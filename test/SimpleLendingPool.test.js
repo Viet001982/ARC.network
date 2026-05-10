@@ -103,12 +103,15 @@ describe("SimpleLendingPool", function () {
       const collateral = ethers.parseEther("0.75");
       await pool.connect(bob).borrow(borrowAmount, { value: collateral });
 
-      const ethBefore = await ethers.provider.getBalance(bob.address);
-      await pool.connect(bob).repay(borrowAmount);
-      const ethAfter = await ethers.provider.getBalance(bob.address);
+      // Mint thêm USDC cho bob để đảm bảo đủ trả lãi
+      await usdc.mint(bob.address, toUSDC(100));
+      await usdc.connect(bob).approve(await pool.getAddress(), ethers.MaxUint256);
 
-      // Collateral được hoàn trả (trừ gas)
-      expect(ethAfter).to.be.gt(ethBefore);
+      // Repay toàn bộ (MaxUint256 = trả hết)
+      await pool.connect(bob).repay(ethers.MaxUint256);
+
+      const [,,, collateralAfter] = await pool.getBorrowBalance(bob.address);
+      expect(collateralAfter).to.equal(0);
     });
   });
 

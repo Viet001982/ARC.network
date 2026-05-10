@@ -117,13 +117,11 @@ contract SimpleLendingPool is Ownable, ReentrancyGuard {
         require(usdcAmount > 0, "Amount must be > 0");
         require(availableLiquidity() >= usdcAmount, "Not enough liquidity");
 
-        // Tính ETH cần thế chấp: (usdcAmount * 150%) / ethPrice
+        // Tính ETH cần thế chấp:
+        // usdcAmount (6 decimals) * 150/100 / ethPriceUSDC (6 decimals) * 1e18
+        // = usdcAmount * 150 * 1e18 / (100 * ethPriceUSDC)
         uint256 requiredCollateral = (usdcAmount * COLLATERAL_RATIO * 1e18)
-            / (BASIS_POINTS / 100 * ethPriceUSDC);
-
-        // Chuẩn lại: (usdcAmount * 1.5) / ethPriceUSDC * 1e18 / 1e6
-        requiredCollateral = (usdcAmount * COLLATERAL_RATIO * 1e12)
-            / (ethPriceUSDC * 100);
+            / (100 * ethPriceUSDC);
 
         require(msg.value >= requiredCollateral, "Insufficient collateral");
 
@@ -163,10 +161,11 @@ contract SimpleLendingPool is Ownable, ReentrancyGuard {
         }
 
         // Hoàn trả ETH theo tỷ lệ nếu trả hết
-        if (pos.borrowed == 0 && pos.accruedInterest == 0) {
+        if (pos.borrowed == 0 && pos.accruedInterest == 0 && pos.collateral > 0) {
             uint256 collateralToReturn = pos.collateral;
             pos.collateral = 0;
-            payable(msg.sender).transfer(collateralToReturn);
+            (bool ok,) = payable(msg.sender).call{value: collateralToReturn}("");
+            require(ok, "ETH transfer failed");
         }
 
         emit Repaid(msg.sender, repayAmount, interestPaid);
